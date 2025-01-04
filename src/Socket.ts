@@ -1,72 +1,23 @@
 import * as Phoenix from "phoenix"
-import { Channel, Options as ChannelOptions } from "./Channel"
+import { Channel, type Options as ChannelOptions, type Topic } from "./Channel"
 
 type Endpoint = string
 
+type CallbackRef = string
+
 export interface Options extends Phoenix.SocketConnectOption {
-  allowMultipleSockets: boolean
   allowMultipleChannels: boolean
   endpoint: Endpoint
 }
 
-const ENDPOINTS = new Map<Endpoint, Socket>()
-
-
 export class Socket extends Phoenix.Socket {
-
-  static openSocket(endpoint?: string): Socket {
-    if (endpoint) {
-      const socket = ENDPOINTS.get(endpoint)
-      if (!socket) {
-        throw new Error(`No socket found for endpoint ${endpoint}`)
-      }
-      return socket
-    }
-
-    switch (ENDPOINTS.size) {
-      case 0:
-        throw new Error("No endpoint options saved!")
-      case 1:
-        return Array.from(ENDPOINTS.values())[0]
-      default:
-        throw new Error(`
-          Cannot get default options - multiple endpoints saved:
-          ${JSON.stringify(Array.from(ENDPOINTS.keys()))}
-        `)
-    }
-  }
-
-  static get(options: Partial<Options> & Pick<Options, "endpoint">) {
-    if (options.allowMultipleSockets) {
-      return new Socket(options.endpoint, options)
-    }
-
-    if (!ENDPOINTS.has(options.endpoint)) {
-      ENDPOINTS.set(options.endpoint, new Socket(options.endpoint, options))
-    }
-
-    return ENDPOINTS.get(options.endpoint)!
-  }
-
-  static clearAll() {
-    for (const socket of ENDPOINTS.values()) {
-      socket.disconnect()
-    }
-
-    ENDPOINTS.clear()
-  }
-
-
+  public channels: Array<Channel> = []
   constructor(public endpoint: string, public options: Partial<Options> = {}) {
-    if (ENDPOINTS.has(endpoint) && !options.allowMultipleSockets) {
-      throw new Error(`Socket for endpoint ${endpoint} already exists!`)
-    }
-    super(endpoint, {
-      ...options,
+    const opts: Partial<Options> = {
       timeout: 300_000,
       heartbeatIntervalMs: 10_000,
-      reconnectAfterMs: (tries) => {
-        if (tries < 5) {
+      reconnectAfterMs: (tries: number | undefined) => {
+        if (!tries || tries < 5) {
           return 100
         } else if (tries < 10) {
           return 250
@@ -78,21 +29,38 @@ export class Socket extends Phoenix.Socket {
 
         return 5000
       },
-    })
+      longPollFallbackMs: 0,
+      ...options,
+    }
+    super(endpoint, opts)
 
-    this.options = options
+    this.options = opts
 
     this.connect()
-
-    ENDPOINTS.set(endpoint, this)
   }
 
-  public channel(channelId: string, chanParams: Partial<ChannelOptions>) {
-    // if (!this.channels.has(channelId)) {
-    //   this.channels.set(channelId, new Channel(channelId, chanParams))
-    // }
-    // return this.channels.get(channelId)!
-    return Channel.get(channelId, chanParams)
+  /**
+   * Registers callbacks for connection open events. If the socket is already
+   * connected when this method is called, it will be invoked immediately in
+   * addition to being registered for any future open events.
+   */
+  public onOpen(callback: () => void): CallbackRef {
+    if (this.isConnected()) {
+      callback()
+    }
+
+    return super.onOpen(callback)
+  }
+
+  public channel(topic: Topic, params: Partial<ChannelOptions>): Channel {
+    const existing = this.channels.find((c) => c.topic === topic)
+
+    if (existing) {
+      return existing
+    }
+
+    const newChannel = new Channel(topic, params, this)
+    this.channels.push(newChannel)
+    return newChannel
   }
 }
-

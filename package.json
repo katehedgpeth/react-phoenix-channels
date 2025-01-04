@@ -10,7 +10,13 @@
     "zustand": ">=5.0.2"
   },
   "scripts": {
-    "test": "vitest"
+    "test": "vitest --config ./vitest.config.ts",
+    "lint": "eslint ."
+  },
+  "prettier": {
+    "singleQuote": false,
+    "semi": false,
+    "trailingComma": "all"
   },
   "peerDependenciesMeta": {
     "react": {
@@ -24,9 +30,24 @@
     "phoenix": "^1.7.18"
   },
   "devDependencies": {
+    "@eslint/js": "^9.17.0",
+    "@testing-library/jest-dom": "^6.6.3",
     "@types/phoenix": "^1.6.6",
+    "@vitest/eslint-plugin": "^1.1.24",
+    "eslint": "^9.17.0",
+    "eslint-import-resolver-typescript": "^3.7.0",
+    "eslint-plugin-import": "^2.31.0",
+    "eslint-plugin-jest-dom": "^5.5.0",
+    "eslint-plugin-react": "^7.37.3",
+    "eslint-plugin-react-compiler": "^19.0.0-beta-55955c9-20241229",
+    "eslint-plugin-react-hooks": "^5.1.0",
+    "eslint-plugin-testing-library": "^7.1.1",
+    "happy-dom": "^16.3.0",
+    "jsdom": "^25.0.1",
+    "msw": "^2.7.0",
     "react": "^17.0.2",
     "typescript": "^5.7.2",
+    "typescript-eslint": "^8.19.0",
     "vitest": "^2.1.8",
     "zustand": "^5.0.2"
   }
