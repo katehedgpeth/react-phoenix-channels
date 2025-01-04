@@ -1,0 +1,33 @@
+{
+  "name": "y",
+  "version": "0.0.1",
+  "main": "index.js",
+  "repository": "https://github.com/katehedgpeth/react_phoenix_channels",
+  "author": "Kate Hedgpeth <katehedgpeth@gmail.com>",
+  "license": "MIT",
+  "peerDependencies": {
+    "react": ">=17.0.2",
+    "zustand": ">=5.0.2"
+  },
+  "scripts": {
+    "test": "vitest"
+  },
+  "peerDependenciesMeta": {
+    "react": {
+      "optional": false
+    },
+    "zustand": {
+      "optional": false
+    }
+  },
+  "dependencies": {
+    "phoenix": "^1.7.18"
+  },
+  "devDependencies": {
+    "@types/phoenix": "^1.6.6",
+    "react": "^17.0.2",
+    "typescript": "^5.7.2",
+    "vitest": "^2.1.8",
+    "zustand": "^5.0.2"
+  }
+}
