@@ -27,12 +27,19 @@
     }
   },
   "dependencies": {
-    "phoenix": "^1.7.18"
+    "@testing-library/react": "12",
+    "phoenix": "^1.7.18",
+    "react-dom": "17",
+    "use-sync-external-store": "^1.4.0",
+    "uuid": "^11.0.3"
   },
   "devDependencies": {
     "@eslint/js": "^9.17.0",
+    "@testing-library/dom": "^10.4.0",
     "@testing-library/jest-dom": "^6.6.3",
     "@types/phoenix": "^1.6.6",
+    "@types/react": "^19.0.2",
+    "@types/use-sync-external-store": "^0.0.6",
     "@vitest/eslint-plugin": "^1.1.24",
     "eslint": "^9.17.0",
     "eslint-import-resolver-typescript": "^3.7.0",

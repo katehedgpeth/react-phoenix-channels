@@ -5,15 +5,15 @@ type Endpoint = string
 
 type CallbackRef = string
 
-export interface Options extends Phoenix.SocketConnectOption {
-  allowMultipleChannels: boolean
+export type Options = Partial<Phoenix.SocketConnectOption> & {
+  allowMultipleChannels?: boolean
   endpoint: Endpoint
 }
 
 export class Socket extends Phoenix.Socket {
   public channels: Array<Channel> = []
-  constructor(public endpoint: string, public options: Partial<Options> = {}) {
-    const opts: Partial<Options> = {
+  constructor(public options: Options) {
+    const opts: Options = {
       timeout: 300_000,
       heartbeatIntervalMs: 10_000,
       reconnectAfterMs: (tries: number | undefined) => {
@@ -32,7 +32,7 @@ export class Socket extends Phoenix.Socket {
       longPollFallbackMs: 0,
       ...options,
     }
-    super(endpoint, opts)
+    super(opts.endpoint, opts)
 
     this.options = opts
 
@@ -52,15 +52,19 @@ export class Socket extends Phoenix.Socket {
     return super.onOpen(callback)
   }
 
-  public channel(topic: Topic, params: Partial<ChannelOptions>): Channel {
+  public channel<T>(
+    topic: Topic,
+    options: Omit<ChannelOptions, "socket">,
+  ): Channel<T> {
     const existing = this.channels.find((c) => c.topic === topic)
 
     if (existing) {
       return existing
     }
 
-    const newChannel = new Channel(topic, params, this)
+    const newChannel = new Channel(topic, { ...options, socket: this })
     this.channels.push(newChannel)
+
     return newChannel
   }
 }

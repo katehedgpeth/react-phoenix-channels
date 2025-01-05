@@ -9,51 +9,49 @@ export type Topic = string
 export type Event = string
 export type ListenerId = string
 
-interface Message<Payload extends MessagePayload = MessagePayload> {
-  type: string
-  payload: Payload
-}
-
-type Callback = (message: Message) => void
-
-type Closure<T> = T | (() => T)
+export type Callback<T> = (state: T, prevState: T) => void
 
 export interface Options {
-  params: Closure<JSON>
-  socket: Closure<Socket>
+  params: Json | (() => Json)
+  socket: Socket
 }
 
 export class Channel<T = Json> extends Phoenix.Channel {
-  private listeners: Map<ListenerId, Callback> = new Map()
-
-  private messages = createStore<T>((store) => store as T)
-
   public joinedOnce = false
 
-  constructor(
-    public topic: string,
-    private params: Closure<Json>,
-    socket: Socket,
-  ) {
-    super(topic, params, socket)
+  public messages: StoreApi<T>
+  private unsubscribes: Map<ListenerId, () => void> = new Map()
+
+  constructor(topic: Topic, options: Options) {
+    super(topic, options.params, options.socket)
+    this.messages = Channel.newStore<T>()
     this.join()
   }
 
-  public listen(listenerId: ListenerId, callback: Callback): void {
-    this.listeners.set(listenerId, callback)
+  public subscribe(listenerId: ListenerId, callback: Callback<T>): () => void {
+    if (this.unsubscribes.has(listenerId)) {
+      this.unsubscribes.delete(listenerId)
+    }
+    const unsubscribe = this.messages.subscribe(callback)
+    this.unsubscribes.set(listenerId, unsubscribe)
+    return unsubscribe
   }
 
-  public clearAllListeners(): void {
-    this.listeners.clear()
-    this.listeners = new Map()
+  public unsubscribeAll(): void {
+    this.unsubscribes.entries().forEach(([id, unsubscribe]) => {
+      unsubscribe()
+      this.unsubscribes.delete(id)
+    })
+    this.messages = Channel.newStore()
   }
 
-  public unlisten(listenerId: ListenerId): void {
-    this.listeners.delete(listenerId)
+  public push(event: Event, payload: Json): Phoenix.Push {
+    console.log("PUSH", { event, payload })
+    return super.push(event, payload)
   }
 
-  public messageState<T>() {
-    return this.messages as unknown as StoreApi<T>
+  static newStore<T>(): StoreApi<T> {
+    return createStore<T>((store) => store as T)
   }
 
   public onMessage(type: string, payload: MessagePayload): MessagePayload {

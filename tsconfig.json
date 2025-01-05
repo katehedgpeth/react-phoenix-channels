@@ -17,6 +17,6 @@
     "noEmit": true,
     "baseUrl": "."
   },
-  "include": ["src/**/*", "test_helpers/**/*"],
+  "include": ["src/**/*", "src/test_helpers/**/*"],
   "exclude": ["node_modules", "dist"]
 }
