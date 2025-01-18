@@ -74,7 +74,7 @@ export default tseslint.config(
         'warn',
         { argsIgnorePattern: '^_', varsIgnorePattern: '^_' },
       ],
-      'react-compiler/react-compiler': 'warn',
+      'react-compiler/react-compiler': 'off',
       ...reactHooks.configs.recommended.rules,
     },
   },
