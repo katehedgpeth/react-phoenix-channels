@@ -1,45 +1,32 @@
-import { type FC, useState } from "react"
-import { useChannel } from "../hooks/useChannel"
-
-interface Messages {
-  result: string
-}
+import { type FC } from "react"
+import { type ConnectionEvent, useChannel } from "../hooks/useChannel"
 
 interface State {
-  socketState: "open" | "closed" | "error"
-  socketError?: any
-  channelState?: "joined" | "closed" | "error" | "timeout"
+  events: Event[]
+}
+
+type Event = ConnectionEvent
+
+function reducer(prevState: State, event: Event): State {
+  return { ...prevState, events: [...prevState.events, event] }
 }
 
 export const ComponentWithChannel: FC = () => {
-  const [state, setState] = useState<State>({ socketState: "closed" })
-  const messages = useChannel<Messages>({
+  const channel = useChannel<Event, State>({
     topic: `ai_summary:${12}`,
-    subscribe: (s) => s,
-    params: {},
-    callbacks: {
-      onSocketOpen: () => {
-        setState((s) => ({ ...s, socketState: "open" }))
-      },
-      onJoinSuccess: () => {
-        setState((s) => ({ ...s, channelState: "joined" }))
-      },
-      onJoinError: () => {
-        setState((s) => ({ ...s, channelState: "error" }))
-      },
-      onJoinTimeout: () => {
-        setState((s) => ({ ...s, channelState: "timeout" }))
-      },
-    },
+    onEvent: reducer,
+    initialState: {
+      events: []
+    }
   })
 
   return (
     <div>
-      <p>Socket state: {state.socketState}</p>
-      <p>Channel state: {state.channelState}</p>
+      <p>Socket state: {channel.socketStatus()}</p>
+      <p>Channel state: {channel.channelStatus()}</p>
 
-      {Object.keys(messages).map((k) => (
-        <p key={k}>{k}</p>
+      {channel.state.events.map((ev, idx) => (
+        <p key={idx}>{JSON.stringify(ev)}</p>
       ))}
     </div>
   )

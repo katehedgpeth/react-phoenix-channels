@@ -9,7 +9,7 @@ import {
   ws,
 } from "msw"
 import { SetupServerApi, setupServer } from "msw/node"
-import type { Event, Topic } from "src/classes/Channel"
+import type { Topic } from "../classes/Channel"
 
 export const WS_ENDPOINT = "wss://localhost:4000"
 
@@ -124,7 +124,7 @@ export class ChannelMock {
 
   public onMessage(
     channel: Topic,
-    message: Event,
+    message: string,
     listener: MessageListener,
   ): void {
     const channelListeners = this.channelListeners.get(channel) ?? new Map()

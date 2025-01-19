@@ -6,7 +6,7 @@ const AUTH_TOKEN = "eyJhbGciOiJIUzUxMiIsInR5cCI6IkpXVCJ9.eyJhdWQiOiJ2ZXRzcGlyZSI
 
 export const App: FC = function App() {
   return (
-    <SocketProvider endpoint={"ws://localhost:4000/socket"} params={{ token: AUTH_TOKEN }}>
+    <SocketProvider url={"ws://localhost:4000/socket"} params={{ token: AUTH_TOKEN }}>
       <div>Debug react_phoenix_channels</div>
       <ComponentWithChannel />
     </SocketProvider>

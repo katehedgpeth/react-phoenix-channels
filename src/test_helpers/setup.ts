@@ -7,7 +7,7 @@ import { ChannelMock, WS_ENDPOINT } from "./ChannelMock"
 export const testWithSocket: TestAPI<{ server: ChannelMock; socket: Socket }> =
   test.extend({
     socket: async ({}, use) => {
-      const socket = new Socket({ endpoint: WS_ENDPOINT })
+      const socket = new Socket(WS_ENDPOINT, {})
       await use(socket)
     },
     server: async ({}, use) => {
