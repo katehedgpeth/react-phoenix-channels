@@ -1,29 +1,38 @@
 import * as Native from "phoenix"
 import { v4 as uuid } from "uuid"
-import { type Event, JoinEvents, PhoenixMessages } from "./Event"
+import {
+  type ChannelEvent,
+  type Event,
+  type JoinEvent,
+  JoinEvents,
+  type JoinTimeout,
+  type PushEvent,
+  PushEvents,
+  type Topic,
+} from "./Event"
 import { Push } from "./Push"
 import * as Phoenix from "./shims/Phoenix"
 import {
   Socket,
   type SocketEvent,
-  Events as SocketEvents,
+  SocketEvents,
   type Snapshot as SocketSnapshot,
 } from "./Socket"
 
 export type Subscriber<Ev = unknown, State = unknown> = (event: Ev) => State
-export type Topic = string
 
 export interface Snapshot {
   channelStatus: ChannelStatus
   isSubscribed: boolean
   hasSubscribers: boolean
-  events: Event[]
+  events: ChannelEvent[]
   pushes: Push[]
   socketSnapshot: SocketSnapshot
 }
 
 enum JoinErrorReason {
   UnmatchedTopic = "unmatched topic",
+  Unauthorized = "unauthorized",
 }
 
 export enum ChannelStatus {
@@ -33,6 +42,7 @@ export enum ChannelStatus {
   JoinError = "JOIN_ERROR",
   Leaving = "LEAVING",
   Closed = "CLOSED",
+  SocketError = "SOCKET_ERROR",
 }
 
 export enum SubscriberStatus {
@@ -40,21 +50,21 @@ export enum SubscriberStatus {
   Unsubscribed = "UNSUBSCRIBED",
 }
 
-type JoinError = Event<JoinEvents.Error, string, { reason: JoinErrorReason }>
+interface JoinError extends Event {
+  type: JoinEvents.Error
+  payload: {
+    reason: JoinErrorReason
+  }
+}
 type SubscriberRef = string
-
-export type ChannelEvent =
-  | { topic: Topic; type: JoinEvents.Error }
-  | { topic: Topic; type: SocketEvents.ConnectError }
-  | { topic: Topic; type: SocketEvents.Close }
-  | { topic: Topic; type: SocketEvents.Open }
 
 export class Channel {
   public id: string
   public topic: Topic
   public pushes: Map<Phoenix.EventRef, Push> = new Map()
   public subscribers: Map<SubscriberRef, Subscriber> = new Map()
-  public events: Event[] = []
+  public events: ChannelEvent[] = []
+  public status: ChannelStatus = ChannelStatus.NotInitialized
 
   private joinPush: Push | null = null
 
@@ -62,12 +72,12 @@ export class Channel {
     this.id = uuid()
     this.topic = this.channel.topic
     this.channel.join = this.__join.bind(this)
-    this.socket.subscribe(this.id, (ev) => this.onSocketEvent(ev))
+    this.socket.subscribe(this.id, (ev) => this.handleSocketEvent(ev))
   }
 
-  public subscribe<Ev, State>(
+  public subscribe(
     subscriberRef: SubscriberRef,
-    callback: Subscriber<Ev, State>,
+    callback: Subscriber,
   ): () => void {
     this.subscribers.set(subscriberRef, callback as Subscriber)
     return () => this.subscribers.delete(subscriberRef)
@@ -81,7 +91,7 @@ export class Channel {
 
   public snapshot(subscriberId: SubscriberRef): Snapshot {
     this.lastSnapshot = {
-      channelStatus: this.channelStatus(),
+      channelStatus: this.status,
       hasSubscribers: this.subscribers.size > 0,
       events: [...this.events],
       pushes: Array.from(this.pushes.values()),
@@ -90,21 +100,6 @@ export class Channel {
     }
 
     return this.lastSnapshot!
-  }
-
-  public channelStatus(): ChannelStatus {
-    switch (this.channel.state) {
-      case Phoenix.ChannelState.Joined:
-        return ChannelStatus.Joined
-      case Phoenix.ChannelState.Joining:
-        return ChannelStatus.Joining
-      case Phoenix.ChannelState.Errored:
-        return ChannelStatus.JoinError
-      case Phoenix.ChannelState.Leaving:
-        return ChannelStatus.Leaving
-      case Phoenix.ChannelState.Closed:
-        return ChannelStatus.Closed
-    }
   }
 
   public subscriberStatus(subscriberId: SubscriberRef): SubscriberStatus {
@@ -118,55 +113,79 @@ export class Channel {
   }
 
   public dispatch(event: ChannelEvent): void {
-    const ev = this.parseEvent(event)
-    this.subscribers.values().forEach((dispatch) => dispatch(ev))
-    switch (ev.type) {
+    switch (event.type) {
       case JoinEvents.Error:
-        return this.handleJoinError(ev as JoinError)
+      case JoinEvents.Start:
+      case JoinEvents.Success:
+      case JoinEvents.Timeout:
+        this.handleJoinEvent(event as JoinEvent)
+        break
 
-      case SocketEvents.ConnectError:
-        return this.handleSocketConnectError()
+      case PushEvents.Send:
+      case PushEvents.Error:
+      case PushEvents.Success:
+      case PushEvents.Timeout:
+        this.handlePushEvent(event)
+        break
     }
+    this.subscribers.values().forEach((dispatch) => dispatch(event))
   }
 
   private handleSocketConnectError(): void {}
 
-  private onSocketEvent(event: SocketEvent): void {
-    switch (event.event) {
-      case SocketEvents.ConnectError:
+  private handleSocketEvent({ event, payload }: SocketEvent): void {
+    console.warn("SOCKET_EVENT", { event, payload })
+    switch (event) {
       case SocketEvents.Close:
-      case SocketEvents.Open:
-        return this.dispatch({ type: event.event, topic: this.topic })
+        this.status = ChannelStatus.Closed
     }
   }
 
-  private parseEvent(event: ChannelEvent): ChannelEvent {
+  public handleJoinEvent(event: JoinEvent): void {
+    const joinStatuses = {
+      [JoinEvents.Start]: ChannelStatus.Joining,
+      [JoinEvents.Success]: ChannelStatus.Joined,
+      [JoinEvents.Timeout]: ChannelStatus.JoinError,
+      [JoinEvents.Error]: ChannelStatus.JoinError,
+    }
+    this.status = joinStatuses[event.type]
     switch (event.type) {
-      // case PushEvents.Error:
-      //   return this.parsePushError(event)
-      case SocketEvents.ConnectError:
-      case SocketEvents.Close:
-      case SocketEvents.Open:
+      case JoinEvents.Error:
+        return this.handleJoinError(event as JoinError)
+      case JoinEvents.Timeout:
+        return this.handleJoinTimeout(event)
       default:
-        return event
+        return
     }
   }
 
-  private parsePushError(event: Event): Event {
-    return event.message === PhoenixMessages.Join
-      ? { ...event, type: JoinEvents.Error }
-      : event
+  private handlePushEvent(event: PushEvent): void {
+    switch (event.type) {
+      case PushEvents.Send:
+        return
+      case PushEvents.Error:
+        return
+      case PushEvents.Success:
+        return
+      case PushEvents.Timeout:
+        return
+    }
   }
 
-  public handleJoinError(event: JoinError): void {
+  private handleJoinError(event: JoinError): void {
     console.error(event.payload.reason, event)
     if (event.payload.reason === JoinErrorReason.UnmatchedTopic) {
       this.leave()
     }
   }
 
+  private handleJoinTimeout(event: JoinTimeout): void {
+    console.error("Join Timeout", event)
+  }
+
   public joinOnce(timeout?: number): Push {
     if (this.joinPush) {
+      console.log(this.joinPush)
       return this.joinPush
     }
 

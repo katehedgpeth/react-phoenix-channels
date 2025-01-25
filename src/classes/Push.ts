@@ -1,6 +1,11 @@
-import * as Phoenix from "./shims/Phoenix"
 import { Channel } from "./Channel"
-import { type Event, JoinEvents, PhoenixMessages, PushEvents } from "./Event"
+import {
+  type ChannelEvent,
+  JoinEvents,
+  PhoenixMessages,
+  PushEvents,
+} from "./Event"
+import * as Phoenix from "./shims/Phoenix"
 
 export class Push {
   public ref: string
@@ -17,6 +22,7 @@ export class Push {
     this.ref = push.ref
     this.refEvent = push.refEvent
     this.topic = channel.topic
+
     this.message = push.event
     this.__send = this.push.send.bind(this.push)
     this.push.send = this.send.bind(this)
@@ -31,35 +37,40 @@ export class Push {
     this.dispatch(PushEvents.Send, this.push.payload)
   }
 
-  private dispatch(type: PushEvents, payload: object) {
+  private dispatch(type: PushEvents, payload: object): void {
     const event = this.parseEvent(type, payload)
 
     this.channel.dispatch(event)
   }
 
-  private parseEvent(type: PushEvents, payload: object): Event {
-    switch (type) {
-      case PushEvents.Error:
-        return this.parseError(payload)
-      default:
-        return {
-          type,
-          topic: this.topic,
-          message: this.message,
-          payload,
-        }
-    }
+  private isJoinPush(): boolean {
+    return this.message === PhoenixMessages.Join
   }
 
-  private parseError(payload: object): Event {
+  private parseEvent(type: PushEvents, payload: object): ChannelEvent {
     return {
       topic: this.topic,
       message: this.message,
       payload,
-      type:
-        this.message === PhoenixMessages.Join
-          ? JoinEvents.Error
-          : PushEvents.Error,
+      type: this.parseEventType(type),
+    } as ChannelEvent
+  }
+
+  private parseEventType(type: PushEvents): PushEvents | JoinEvents {
+    if (this.isJoinPush()) {
+      switch (type) {
+        case PushEvents.Send:
+          return JoinEvents.Start
+        case PushEvents.Success:
+          return JoinEvents.Success
+        case PushEvents.Error:
+          return JoinEvents.Error
+        case PushEvents.Timeout:
+          return JoinEvents.Timeout
+        default:
+          throw new Error(`Unknown join event type: ${type}`)
+      }
     }
+    return type
   }
 }

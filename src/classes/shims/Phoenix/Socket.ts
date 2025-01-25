@@ -4,7 +4,7 @@ export * as JoinError from "./Socket/JoinError"
 
 export type Topic = string
 
-export enum Messages {
+export enum SocketMessages {
   Join = "phx_join",
   Error = "phx_error",
   Reply = "phx_reply",
@@ -20,7 +20,7 @@ export enum SocketStatus {
 }
 
 export interface Reply {
-  message: Messages.Reply
+  message: SocketMessages.Reply
   payload: Error
 }
 

@@ -1,10 +1,6 @@
 import { useContext, useEffect, useMemo, useReducer, useRef } from "react"
 import type { Channel } from "../classes"
-import {
-  type ChannelEvent,
-  ChannelStatus,
-  SubscriberStatus,
-} from "../classes/Channel"
+import { ChannelStatus, SubscriberStatus } from "../classes/Channel"
 import { SocketStatus } from "../classes/Socket"
 import { SocketContext } from "../providers/SocketProvider"
 
@@ -21,8 +17,6 @@ interface Context<State> {
   socketStatus: () => SocketStatus
 }
 
-export type ConnectionEvent = ChannelEvent
-
 export function useChannel<Events, State>({
   topic,
   onEvent,
@@ -30,9 +24,7 @@ export function useChannel<Events, State>({
   ...options
 }: Props<Events, State>): Context<State> {
   const socket = useContext(SocketContext)
-  const channel = useRef<Channel | null>(
-    socket.getOrCreateChannel(topic, options),
-  )
+  const channel = useRef<Channel>(socket.getOrCreateChannel(topic, options))
   const subscriberId = useRef(window.crypto.randomUUID())
   const topicRef = useRef(topic)
   topicRef.current = topic
@@ -42,34 +34,21 @@ export function useChannel<Events, State>({
   channel.current?.subscribe(subscriberId.current, dispatch)
 
   useEffect(() => {
-    const current = {
-      channel: channel.current,
-      subscriberId: subscriberId.current,
+    const unsubscribe = channel.current?.subscribe(
+      subscriberId.current,
+      dispatch,
+    )
+
+    console.log("CHANNEL_STATUS", channel.current.status)
+    if (channel.current?.status === ChannelStatus.NotInitialized) {
+      const join = channel.current.joinOnce()
+      console.log("JOIN", join)
     }
     return () => {
-      current.channel?.unsubscribe(current.subscriberId)
+      unsubscribe?.()
     }
   }, [])
-
-  // useEffect(() => {
-  //   console.log({
-  //     topic: topicRef.current,
-  //     options,
-  //     socket,
-  //     channel: channel.current,
-  //   })
-  //   if (!channel.current) {
-  //     throw new Error(`${topicRef.current} channel is not initialized!`)
-  //   }
-  //   const unsubscribe = channel.current.subscribe(
-  //     subscriberId.current,
-  //     dispatch,
-  //   )
-  //   return () => {
-  //     unsubscribe()
-  //     channel.current = null
-  //   }
-  // }, [options, socket])
+  console.log("CHANNEL", channel.current)
 
   return useMemo(() => {
     return {
@@ -81,12 +60,10 @@ export function useChannel<Events, State>({
         channel.current.push(message, payload)
       },
       socketStatus: () => {
-        return socket.status()
+        return socket.connectionStatus
       },
       channelStatus: () => {
-        return channel.current
-          ? channel.current.channelStatus()
-          : ChannelStatus.NotInitialized
+        return channel.current.status
       },
       subscriptionStatus: (): SubscriberStatus => {
         return channel.current

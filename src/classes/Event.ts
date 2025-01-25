@@ -1,4 +1,4 @@
-import { Events as SocketEvents } from "./Socket"
+import { SocketEvents } from "./Socket"
 
 export enum PhoenixMessages {
   Join = "phx_join",
@@ -10,61 +10,93 @@ export enum PhoenixMessages {
 }
 
 export enum PushEvents {
-  Send = "SEND",
-  Success = "SUCCESS",
-  Timeout = "TIMEOUT",
-  Error = "ERROR",
+  Send = "PUSH_SEND",
+  Success = "PUSH_SUCCESS",
+  Timeout = "PUSH_TIMEOUT",
+  Error = "PUSH_ERROR",
 }
 
 export enum JoinEvents {
-  Start = "START_JOIN",
+  Start = "JOIN_START",
   Success = "JOIN_SUCCESS",
   Error = "JOIN_ERROR",
   Timeout = "JOIN_TIMEOUT",
 }
 
 export enum MessageEvents {
-  Receive = "RECEIVE_MESSAGE",
+  Receive = "MESSAGE_RECEIVE",
 }
 
-export interface Event<
-  Type extends PushEvents | MessageEvents | JoinEvents | SocketEvents =
-    | PushEvents
-    | MessageEvents
-    | JoinEvents
-    | SocketEvents,
-  Message extends string = string,
-  Payload extends object | undefined = object,
-> {
-  type: Type
+export interface Event {
+  type: string
   topic: string
-  message: Message
-  payload: Payload
+  message: string
+  payload: object | undefined
 }
 
-export type PushEvent<
-  Message extends string = string,
-  Payload extends object = object,
-  Response extends object = object,
-  ErrorResponse extends object = object,
-  TimeoutResponse extends object = object,
-> =
-  | Event<PushEvents.Send, Message, Payload>
-  | Event<PushEvents.Success, Message, Response>
-  | Event<PushEvents.Error, Message, ErrorResponse>
-  | Event<PushEvents.Timeout, Message, TimeoutResponse>
+export type Topic = string
 
-export type MessageEvent<
-  Message extends string = string,
-  Payload extends object = object,
-> = Event<MessageEvents.Receive, Message, Payload>
+export interface PushSend extends Event {
+  type: PushEvents.Send
+  payload: object
+}
 
-export type JoinEvent<
-  Payload extends object = object,
-  Response extends object = object,
-> = PushEvent<PhoenixMessages.Join, Payload, Response>
+export interface PushReply extends Event {
+  type: PushEvents.Success | PushEvents.Error | PushEvents.Timeout
+}
 
-export type ChannelEvents<
-  PushEvents extends PushEvent,
-  MessageEvents extends MessageEvent,
-> = JoinEvent | PushEvents | MessageEvents
+export type PushEvent = PushSend | PushReply
+
+export interface JoinStart extends Event {
+  type: JoinEvents.Start
+}
+export interface JoinError extends Event {
+  type: JoinEvents.Error
+  payload: {
+    reason: string
+  }
+}
+
+export interface JoinSuccess extends Event {
+  type: JoinEvents.Success
+}
+
+export interface JoinTimeout extends Event {
+  type: JoinEvents.Timeout
+}
+
+export type JoinEvent = JoinStart | JoinSuccess | JoinError | JoinTimeout
+
+export interface SocketEvent extends Event {
+  type: SocketEvents
+}
+
+export type ChannelEvent = JoinEvent | PushEvent | SocketEvent
+
+// export type PushEvent<
+//   Message extends string = string,
+//   Payload extends object = object,
+//   Response extends object = object,
+//   ErrorResponse extends object = object,
+//   TimeoutResponse extends object = object,
+// > =
+//   | Event<PushEvents.Send, Message, Payload>
+//   | Event<PushEvents.Success, Message, Response>
+//   | Event<PushEvents.Error, Message, ErrorResponse>
+//   | Event<PushEvents.Timeout, Message, TimeoutResponse>
+//
+// export type MessageEvent<
+//   Message extends string = string,
+//   Payload extends object = object,
+// > = Event<MessageEvents.Receive, Message, Payload>
+//
+// export type JoinEvent<
+//   Payload extends object = object,
+//   Response extends object = object,
+// > = PushEvent<PhoenixMessages.Join, Payload, Response>
+//
+// export type ChannelEvents<
+//   PushEvents extends PushEvent,
+//   MessageEvents extends MessageEvent,
+// > = JoinEvent | PushEvents | MessageEvents
+//

@@ -27,6 +27,6 @@ defmodule DebugBackendWeb.RoomChannel do
 
   # Add authorization logic here as required.
   defp authorized?(payload) do
-    Map.get(payload, "unauthorized", false)
+    Map.get(payload, "unauthorized") !== "true"
   end
 end

@@ -1,75 +1,102 @@
-import { type FC, type PropsWithChildren, type Context as ReactContext, createContext, useCallback, useEffect, useMemo, useRef } from "react"
-import { useSyncExternalStore } from "use-sync-external-store/shim"
-import { type Options, type Snapshot, Socket, SocketStatus } from "../classes/Socket"
+import {
+  type FC,
+  type PropsWithChildren,
+  type Context as ReactContext,
+  createContext,
+  memo,
+  useEffect,
+  useMemo,
+  useRef,
+  useState
+} from "react"
+import { type Options, Socket, SocketStatus } from "../classes/Socket"
 
 interface Context {
-  state: Snapshot
+  connectionStatus: Socket["connectionStatus"]
   getOrCreateChannel: Socket["getOrCreateChannel"]
-  status: Socket["status"]
+  subscribe: (cb: () => void) => void
 }
 
 export const SocketContext: ReactContext<Context> = createContext({
-  state: {
-    channels: [],
-    status: SocketStatus.NotInitialized,
-    hasErrors: false,
-    hasSubscribers: false,
-    connectionStatus: SocketStatus.NotInitialized,
-    isSubscribed: false
-  },
+  connectionStatus: SocketStatus.NotInitialized,
   getOrCreateChannel: (_topic: string, _params: object) => {
     throw new Error("SocketProvider not initialized!")
   },
-  status: () => {
+  subscribe: () => {
     throw new Error("SocketProvider not initialized!")
-  }
+  },
 } as Context)
 
 type Props = PropsWithChildren<Options & { url: string }>
 
-export const SocketProvider: FC<Props> = ({ children, url, ...options }) => {
+export const SocketProvider: FC<Props> = memo(function SocketProvider({ children, url, ...options }: Props) {
   const socket = useRef<Socket>(new Socket(url, options))
   const subscriberRef = useRef<string>(window.crypto.randomUUID())
 
-  const snapshot = useRef<Snapshot>(socket.current.snapshot(subscriberRef.current))
+  const [connectionStatus, setConnectionStatus] = useState(socket.current.connectionStatus)
+
+  socket.current.subscribeToChanges(subscriberRef.current, () => {
+    setConnectionStatus(socket.current.connectionStatus)
+  })
 
   useEffect(() => {
-    if (snapshot.current.connectionStatus === SocketStatus.NotInitialized) {
-      socket.current.connect()
+    if (socket.current.connectionStatus !== SocketStatus.NotInitialized) {
+      throw new Error("Socket already initialized!")
+    }
+    const disconnect = socket.current.connect()
+    return () => {
+      console.error("SocketProvider unmounted. Disconnecting socket.")
+      disconnect()
     }
   }, [])
 
 
-  const subscribe = useCallback((cb: () => void) => {
-    return socket.current.subscribeToChanges(subscriberRef.current, cb)
-  }, [])
+  useEffect(() => {
+    if (url !== socket.current.url) {
+      console.error(`
+        Socket URL changed from ${socket.current.url} to ${url}.
+        ReactPhoenixChannels expects the socket URL not to change.
+        This change will be ignored and the socket will continue to
+        use the URL passed at initialization. (${socket.current.url})
+        `)
+    }
+  }, [url])
 
-  const state = useSyncExternalStore<Snapshot>(subscribe, () => {
-    snapshot.current = socket.current.snapshot(subscriberRef.current, snapshot.current)
-    return snapshot.current
-  })
+  useEffect(() => {
+    const hasChanged = Object.keys(options).some((key) => {
+      return options[key as keyof Options] !== socket.current.options[key as keyof Options]
+    })
+    if (hasChanged) {
+      console.error(`
+        Ignoring unexpected Socket options change:
+        initial: ${JSON.stringify(socket.current.options)}
+        updated options: ${JSON.stringify(options)}.
+
+        ReactPhoenixChannels expects the socket options to be memoized.
+        This change will be ignored and the socket will continue to
+        use the options passed at initialization.
+        `)
+    }
+  }, [options])
 
   const context: Context = useMemo(() => {
     return {
-      state,
+      connectionStatus,
       getOrCreateChannel: (topic, params) => {
         if (!socket.current) {
           throw new Error("socket not initialized!")
         }
         return socket.current.getOrCreateChannel(topic, params)
       },
-      status: () => {
-        if (!socket.current) {
-          return SocketStatus.NotInitialized
-        }
-        return socket.current.status()
-      }
+      subscribe: (cb: () => void) => {
+        return socket.current.subscribeToChanges(subscriberRef.current, cb)
+      },
     }
-  }, [state])
+  }, [connectionStatus])
 
   return (
     <SocketContext.Provider value={context}>
       {children}
     </SocketContext.Provider>
   )
-}
+})
