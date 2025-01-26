@@ -72,31 +72,3 @@ export interface SocketEvent extends Event {
 }
 
 export type ChannelEvent = JoinEvent | PushEvent | SocketEvent
-
-// export type PushEvent<
-//   Message extends string = string,
-//   Payload extends object = object,
-//   Response extends object = object,
-//   ErrorResponse extends object = object,
-//   TimeoutResponse extends object = object,
-// > =
-//   | Event<PushEvents.Send, Message, Payload>
-//   | Event<PushEvents.Success, Message, Response>
-//   | Event<PushEvents.Error, Message, ErrorResponse>
-//   | Event<PushEvents.Timeout, Message, TimeoutResponse>
-//
-// export type MessageEvent<
-//   Message extends string = string,
-//   Payload extends object = object,
-// > = Event<MessageEvents.Receive, Message, Payload>
-//
-// export type JoinEvent<
-//   Payload extends object = object,
-//   Response extends object = object,
-// > = PushEvent<PhoenixMessages.Join, Payload, Response>
-//
-// export type ChannelEvents<
-//   PushEvents extends PushEvent,
-//   MessageEvents extends MessageEvent,
-// > = JoinEvent | PushEvents | MessageEvents
-//

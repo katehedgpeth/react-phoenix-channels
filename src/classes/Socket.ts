@@ -10,7 +10,6 @@ export type Options = Partial<Phoenix.SocketConnectOption>
 export enum SocketStatus {
   NotInitialized = "NOT_INITIALIZED",
   Connecting = "CONNECTING",
-  ConnectError = "CONNECT_ERROR",
   Open = "OPEN",
   Closing = "CLOSING",
   Closed = "CLOSED",
@@ -18,10 +17,31 @@ export enum SocketStatus {
 }
 
 export enum SocketEvents {
+  Connecting = "SOCKET_CONNECTING",
   Open = "SOCKET_OPEN",
-  Close = "SOCKET_CLOSE",
-  ConnectError = "SOCKET_CONNECT_ERROR",
-  ConnectionLostError = "SOCKET_CONNECTION_LOST_ERROR",
+  Closing = "SOCKET_CLOSING",
+  NormalClose = "SOCKET_NORMAL_CLOSE",
+  AbnormalClose = "SOCKET_ABNORMAL_CLOSE",
+  Error = "SOCKET_ERROR",
+}
+
+export enum SocketCloseCodes {
+  Normal = 1000,
+  GoingAway = 1001,
+  ProtocolError = 1002,
+  UnsupportedData = 1003,
+  NoStatus = 1005,
+  Abnormal = 1006,
+  InvalidData = 1007,
+  PolicyViolation = 1008,
+  TooBig = 1009,
+  MandatoryExtension = 1010,
+  ServerError = 1011,
+  ServiceRestart = 1012,
+  TryAgainLater = 1013,
+  BadGateway = 1014,
+  TLSHandshake = 1015,
+  Unknown = -1,
 }
 
 interface SocketMessage {
@@ -32,22 +52,44 @@ interface SocketMessage {
   topic: Topic
 }
 
-interface SocketCloseEvent {
-  event: SocketEvents.Close
-  payload: CloseEvent
+export interface SocketNormalCloseEvent {
+  event: SocketEvents.NormalClose
+  payload: {
+    event: CloseEvent
+    reason: SocketCloseCodes
+    code: number
+  }
 }
 
-interface SocketConnectionLostEvent {
-  event: SocketEvents.ConnectionLostError
-  payload: Phoenix.SocketError
+export interface SocketAbnormalCloseEvent {
+  event: SocketEvents.AbnormalClose
+  payload: {
+    event: CloseEvent
+    reason: SocketCloseCodes
+    code: number
+  }
 }
 
-interface SocketConnectErrorEvent {
-  event: SocketEvents.ConnectError
-  payload: Phoenix.SocketError
+export interface SocketErrorEvent {
+  event: SocketEvents.Error
+  payload: {
+    error: Phoenix.SocketError
+    transport: WebSocket["constructor"] | Native.LongPoll["constructor"]
+    establishedConnections: number
+  }
 }
 
-interface SocketOpenEvent {
+export interface SocketConnectingEvent {
+  event: SocketEvents.Connecting
+  payload: undefined
+}
+
+export interface SocketClosingEvent {
+  event: SocketEvents.Closing
+  payload: undefined
+}
+
+export interface SocketOpenEvent {
   event: SocketEvents.Open
   payload: undefined
 }
@@ -60,19 +102,18 @@ export interface Snapshot {
   isSubscribed: boolean
 }
 
+type SocketCloseEvent = SocketNormalCloseEvent | SocketAbnormalCloseEvent
+
 export type SocketEvent =
-  | SocketCloseEvent
-  | SocketConnectionLostEvent
+  | SocketConnectingEvent
   | SocketOpenEvent
-  | SocketConnectErrorEvent
+  | SocketClosingEvent
+  | SocketNormalCloseEvent
+  | SocketAbnormalCloseEvent
+  | SocketErrorEvent
 
 type SubscriberId = string
 type Dispatch = (event: SocketEvent) => void
-
-interface SocketError {
-  event: SocketEvents.ConnectionLostError | SocketEvents.ConnectError
-  error: Phoenix.SocketError
-}
 
 export class Socket {
   public subscribers: Map<SubscriberId, Dispatch> = new Map()
@@ -81,11 +122,11 @@ export class Socket {
   public channels: Map<Topic, Channel> = new Map()
   public id: string
   public connectionStatus: SocketStatus = SocketStatus.NotInitialized
+  public errors: Array<SocketErrorEvent | SocketAbnormalCloseEvent> = []
 
   private pushes: Map<Topic, Map<Phoenix.EventRef, Push>> = new Map()
 
   private conn: WebSocket | Native.LongPoll | null = null
-  private errors: SocketError[] = []
 
   constructor(public url: string, public options: Options) {
     this.id = uuid()
@@ -107,31 +148,19 @@ export class Socket {
 
   public connect(): () => void {
     if (this.connectionStatus === SocketStatus.NotInitialized) {
-      this.connectionStatus = SocketStatus.Connecting
       this.socket.connect()
     }
     return () => {
-      this.socket.disconnect(() => {
-        console.log("SOCKET_DISCONNECTED")
-      })
+      this.disconnect()
     }
   }
 
-  public status(): SocketStatus {
-    const status = this.socket.connectionState()
-
-    switch (status) {
-      case Phoenix.SocketStatus.Connecting:
-        return SocketStatus.Connecting
-      case Phoenix.SocketStatus.Open:
-        return SocketStatus.Open
-      case Phoenix.SocketStatus.Closing:
-        return SocketStatus.Closing
-      case Phoenix.SocketStatus.Closed:
-        return SocketStatus.Closed
-      default:
-        throw new Error(`Unknown socket status: ${status}`)
-    }
+  public disconnect(): void {
+    this.updateConnectionStatus(SocketStatus.Closing, {
+      event: SocketEvents.Closing,
+      payload: undefined,
+    })
+    this.socket.disconnect()
   }
 
   public channelListener(topic: Topic, params: object): Phoenix.Channel {
@@ -165,14 +194,6 @@ export class Socket {
   public subscribe(subscriberId: SubscriberId, dispatch: Dispatch): () => void {
     this.subscribers.set(subscriberId, dispatch)
     return () => this.subscribers.delete(subscriberId)
-  }
-
-  public subscribeToChanges(
-    subscriberId: SubscriberId,
-    callback: () => void,
-  ): () => void {
-    this.changeSubscribers.set(subscriberId, callback)
-    return () => this.changeSubscribers.delete(subscriberId)
   }
 
   private currentSnapshot(subscriberId: SubscriberId): Snapshot {
@@ -209,12 +230,7 @@ export class Socket {
     return Socket.snapshotHasChanged(prev, current) ? current : prev
   }
 
-  private dispatchChange(): void {
-    this.changeSubscribers.forEach((dispatch) => dispatch())
-  }
-
   private push(event: object): void {
-    // console.log("pushing to server:", event)
     Native.Socket.prototype.push.bind(this.socket)(event)
   }
 
@@ -230,16 +246,40 @@ export class Socket {
     return prevSet.difference(currentSet).size > 0
   }
 
-  private onOpen(...args: unknown[]): void {
-    this.updateConnectionStatus(SocketStatus.Open)
-    console.log("SOCKET_OPEN", ...args)
+  private onOpen(): void {
+    this.updateConnectionStatus(SocketStatus.Open, {
+      event: SocketEvents.Open,
+      payload: undefined,
+    })
   }
 
-  private onClose(event: CloseEvent): void {
-    this.updateConnectionStatus(SocketStatus.Closed)
-    this.subscribers.forEach((dispatch) => {
-      dispatch({ event: SocketEvents.Close, payload: event })
-    })
+  private onClose(closeEvent: CloseEvent): void {
+    const [status, ev] = this.closedStatus(closeEvent.code)
+    const event: SocketCloseEvent = {
+      event: ev,
+      payload: {
+        event: closeEvent,
+        reason: (SocketCloseCodes[closeEvent.code] ||
+          SocketCloseCodes.Unknown) as SocketCloseCodes,
+        code: closeEvent.code,
+      },
+    }
+    if (event.event === SocketEvents.AbnormalClose) {
+      this.errors.push(event)
+    }
+    console.log(this.errors)
+    this.updateConnectionStatus(status, event)
+  }
+
+  private closedStatus(
+    code: number,
+  ):
+    | [SocketStatus.Closed, SocketEvents.NormalClose]
+    | [SocketStatus.ConnectionLost, SocketEvents.AbnormalClose] {
+    if (code === SocketCloseCodes.Normal) {
+      return [SocketStatus.Closed, SocketEvents.NormalClose]
+    }
+    return [SocketStatus.ConnectionLost, SocketEvents.AbnormalClose]
   }
 
   private onError(
@@ -247,31 +287,18 @@ export class Socket {
     transport: WebSocket["constructor"] | Native.LongPoll["constructor"],
     establishedConnections: number,
   ): void {
-    console.error(error, { establishedConnections })
-    const statuses = {
-      [SocketEvents.ConnectError]: SocketStatus.ConnectError,
-      [SocketEvents.ConnectionLostError]: SocketStatus.ConnectionLost,
-    }
-    const event =
-      establishedConnections === 0
-        ? SocketEvents.ConnectError
-        : SocketEvents.ConnectionLostError
-
-    this.errors.push({ event, error })
-    this.updateConnectionStatus(statuses[event])
-
-    if (error instanceof Event) {
-      if (establishedConnections === 0) {
-        this.subscribers.forEach((dispatch) => {
-          dispatch({
-            event,
-            payload: error,
-          })
-        })
-      }
+    const event: SocketErrorEvent = {
+      event: SocketEvents.Error,
+      payload: {
+        error,
+        transport,
+        establishedConnections,
+      },
     }
 
-    this.dispatchChange()
+    this.errors.push(event)
+    console.log(this.errors)
+    this.subscribers.forEach((dispatch) => dispatch(event))
   }
 
   private onMessage(msg: SocketMessage): void {
@@ -279,17 +306,29 @@ export class Socket {
   }
 
   private transportConnect(): void {
+    this.errors = []
+    this.updateConnectionStatus(SocketStatus.Connecting, {
+      event: SocketEvents.Connecting,
+      payload: undefined,
+    })
+
     // @ts-expect-error transportConnect does exist on the socket class
     Native.Socket.prototype.transportConnect.bind(this.socket)()
-    this.conn = this.socket.conn
-    this.errors = []
-    this.updateConnectionStatus(SocketStatus.Connecting)
+    this.conn = this.socket.conn as WebSocket
+    this.conn.addEventListener("error", (ev) => {
+      console.error("WEBSOCKET_ERROR_EVENT", ev, this.socket)
+    })
   }
 
-  private updateConnectionStatus(status: SocketStatus): void {
+  private updateConnectionStatus(
+    status: SocketStatus,
+    event: SocketEvent,
+  ): void {
     if (status !== this.connectionStatus) {
       this.connectionStatus = status
-      this.dispatchChange()
+      this.subscribers.forEach((dispatch) => {
+        dispatch(event)
+      })
     }
   }
 }

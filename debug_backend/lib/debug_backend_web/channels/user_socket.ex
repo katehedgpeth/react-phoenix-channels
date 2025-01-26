@@ -8,7 +8,7 @@ defmodule DebugBackendWeb.UserSocket do
 
   ## Channels
 
-  channel "room:*", DebugBackendWeb.RoomChannel
+  channel("room:*", DebugBackendWeb.RoomChannel)
 
   # Socket params are passed from the client and can
   # be used to verify and authenticate a user. After
@@ -27,6 +27,15 @@ defmodule DebugBackendWeb.UserSocket do
   @impl true
   def connect(_params, socket, _connect_info) do
     {:ok, socket}
+  end
+
+  def handle_error(conn, :unauthorized) do
+    conn
+    |> Plug.Conn.resp(
+      :unauthorized,
+      Jason.encode!(%{error: "You are not authorized to access this socket"})
+    )
+    |> IO.inspect()
   end
 
   # Socket IDs are topics that allow you to identify all sockets for a given user:

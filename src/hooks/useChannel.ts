@@ -31,8 +31,6 @@ export function useChannel<Events, State>({
 
   const [state, dispatch] = useReducer(onEvent, initialState)
 
-  channel.current?.subscribe(subscriberId.current, dispatch)
-
   useEffect(() => {
     const unsubscribe = channel.current?.subscribe(
       subscriberId.current,

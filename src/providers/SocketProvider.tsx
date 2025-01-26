@@ -6,15 +6,14 @@ import {
   memo,
   useEffect,
   useMemo,
+  useReducer,
   useRef,
-  useState
 } from "react"
-import { type Options, Socket, SocketStatus } from "../classes/Socket"
+import { type Options, Socket, type SocketAbnormalCloseEvent, type SocketErrorEvent, type SocketEvent, SocketEvents, SocketStatus } from "../classes/Socket"
 
 interface Context {
   connectionStatus: Socket["connectionStatus"]
   getOrCreateChannel: Socket["getOrCreateChannel"]
-  subscribe: (cb: () => void) => void
 }
 
 export const SocketContext: ReactContext<Context> = createContext({
@@ -22,22 +21,40 @@ export const SocketContext: ReactContext<Context> = createContext({
   getOrCreateChannel: (_topic: string, _params: object) => {
     throw new Error("SocketProvider not initialized!")
   },
-  subscribe: () => {
-    throw new Error("SocketProvider not initialized!")
-  },
 } as Context)
 
 type Props = PropsWithChildren<Options & { url: string }>
+
+interface State {
+  connectionStatus: SocketStatus
+  error: SocketErrorEvent["payload"] | SocketAbnormalCloseEvent["payload"] | null
+}
+
+function parseSocketError({ event, payload }: SocketEvent): State["error"] {
+  switch (event) {
+    case SocketEvents.Error:
+    case SocketEvents.AbnormalClose:
+      return payload
+    default:
+      return null
+  }
+}
+
+function reducer(state: State, { event, payload }: SocketEvent, socket: Socket): State {
+  return {
+    ...state,
+    connectionStatus: socket.connectionStatus,
+    error: parseSocketError({ event, payload } as SocketEvent)
+  }
+}
 
 export const SocketProvider: FC<Props> = memo(function SocketProvider({ children, url, ...options }: Props) {
   const socket = useRef<Socket>(new Socket(url, options))
   const subscriberRef = useRef<string>(window.crypto.randomUUID())
 
-  const [connectionStatus, setConnectionStatus] = useState(socket.current.connectionStatus)
+  const [state, dispatch] = useReducer<State, [SocketEvent]>((state, event) => reducer(state, event, socket.current), { connectionStatus: socket.current.connectionStatus, error: null })
 
-  socket.current.subscribeToChanges(subscriberRef.current, () => {
-    setConnectionStatus(socket.current.connectionStatus)
-  })
+  socket.current.subscribe(subscriberRef.current, dispatch)
 
   useEffect(() => {
     if (socket.current.connectionStatus !== SocketStatus.NotInitialized) {
@@ -81,18 +98,15 @@ export const SocketProvider: FC<Props> = memo(function SocketProvider({ children
 
   const context: Context = useMemo(() => {
     return {
-      connectionStatus,
+      ...state,
       getOrCreateChannel: (topic, params) => {
         if (!socket.current) {
           throw new Error("socket not initialized!")
         }
         return socket.current.getOrCreateChannel(topic, params)
       },
-      subscribe: (cb: () => void) => {
-        return socket.current.subscribeToChanges(subscriberRef.current, cb)
-      },
     }
-  }, [connectionStatus])
+  }, [state])
 
   return (
     <SocketContext.Provider value={context}>

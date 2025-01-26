@@ -1,18 +1,47 @@
-/* eslint-disable react-hooks/rules-of-hooks */
-/* eslint-disable no-empty-pattern */
+import { type WebSocketLink, ws } from "msw"
+import { SetupServerApi, setupServer } from "msw/node"
 import { type TestAPI, test } from "vitest"
-import { Socket } from "../classes/Socket"
-import { ChannelMock, WS_ENDPOINT } from "./ChannelMock"
 
-export const testWithSocket: TestAPI<{ server: ChannelMock; socket: Socket }> =
-  test.extend({
-    socket: async ({}, use) => {
-      const socket = new Socket(WS_ENDPOINT, {})
-      await use(socket)
+interface Context {
+  url: string
+  link: WebSocketLink
+  server: SetupServerApi
+}
+
+export const testWithServer: TestAPI<Context> = test.extend<Context>({
+  url: [
+    // eslint-disable-next-line no-empty-pattern
+    async ({}, use) => {
+      use("ws://localhost:4000")
     },
-    server: async ({}, use) => {
-      const server = new ChannelMock({})
+    { auto: true },
+  ],
+  link: [
+    async ({ url }, use) => {
+      const link = ws.link(url + "/websocket")
+      await use(link)
+      link.clients.clear()
+    },
+    { auto: true },
+  ],
+  server: [
+    // eslint-disable-next-line no-empty-pattern
+    async ({}, use) => {
+      // link.clients.clear()
+      console.log()
+
+      const server: SetupServerApi = setupServer()
+      // Start the worker before the test.
+      server.events.on("request:start", ({ request }) => {
+        console.log("MSW intercepted:", request.method, request.url)
+      })
       server.listen()
+
+      // Expose the worker object on the test's context.
       await use(server)
+
+      // Stop the worker after the test is done.
     },
-  })
+    { auto: true },
+  ],
+})

@@ -14,6 +14,7 @@ import { Push } from "./Push"
 import * as Phoenix from "./shims/Phoenix"
 import {
   Socket,
+  type SocketCloseEvent,
   type SocketEvent,
   SocketEvents,
   type Snapshot as SocketSnapshot,
@@ -75,9 +76,9 @@ export class Channel {
     this.socket.subscribe(this.id, (ev) => this.handleSocketEvent(ev))
   }
 
-  public subscribe(
+  public subscribe<Events>(
     subscriberRef: SubscriberRef,
-    callback: Subscriber,
+    callback: Subscriber<Events>,
   ): () => void {
     this.subscribers.set(subscriberRef, callback as Subscriber)
     return () => this.subscribers.delete(subscriberRef)
@@ -134,11 +135,22 @@ export class Channel {
   private handleSocketConnectError(): void {}
 
   private handleSocketEvent({ event, payload }: SocketEvent): void {
-    console.warn("SOCKET_EVENT", { event, payload })
     switch (event) {
       case SocketEvents.Close:
+      case SocketEvents.ConnectError:
+      case SocketEvents.ConnectionLostError:
         this.status = ChannelStatus.Closed
+        break
+      case SocketEvents.Open:
+        break
     }
+
+    this.dispatch({
+      type: event,
+      topic: this.topic,
+      message: event,
+      payload,
+    })
   }
 
   public handleJoinEvent(event: JoinEvent): void {

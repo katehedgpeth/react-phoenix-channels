@@ -19,8 +19,6 @@ export const ComponentWithChannel: FC = () => {
     }
   })
 
-  console.log(channel)
-
   return (
     <div>
       <p>Socket state: {channel.socketStatus()}</p>
