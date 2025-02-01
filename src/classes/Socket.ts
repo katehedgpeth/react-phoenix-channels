@@ -1,8 +1,7 @@
 import * as Native from "phoenix"
 import { v4 as uuid } from "uuid"
 import { Channel } from "./Channel"
-import { type Topic } from "./Event"
-import { Push } from "./Push"
+import { HeartbeatEvents, type Topic } from "./Event"
 import * as Phoenix from "./shims/Phoenix"
 
 export type Options = Partial<Phoenix.SocketConnectOption>
@@ -44,13 +43,26 @@ export enum SocketCloseCodes {
   Unknown = -1,
 }
 
-interface SocketMessage {
+interface UnknownSocketMessage {
   event: Phoenix.SocketMessages
   ref: Phoenix.EventRef | null
   joinRef: Phoenix.JoinRef | null
   payload: object
   topic: Topic
 }
+
+interface MessageReply {
+  event: Phoenix.SocketMessages.Reply
+  joinRef: null
+  ref: string
+  topic: Topic
+  payload: {
+    status: "ok" | "error"
+    response: object
+  }
+}
+
+type SocketMessage = MessageReply | UnknownSocketMessage
 
 export interface SocketNormalCloseEvent {
   event: SocketEvents.NormalClose
@@ -104,6 +116,17 @@ export interface Snapshot {
 
 type SocketCloseEvent = SocketNormalCloseEvent | SocketAbnormalCloseEvent
 
+interface HeartbeatSendEvent {
+  event: HeartbeatEvents.Send
+  payload: undefined
+}
+interface HeartbeatReplyEvent {
+  event: HeartbeatEvents.Reply
+  payload: {
+    status: "ok" | "error"
+  }
+}
+
 export type SocketEvent =
   | SocketConnectingEvent
   | SocketOpenEvent
@@ -111,9 +134,18 @@ export type SocketEvent =
   | SocketNormalCloseEvent
   | SocketAbnormalCloseEvent
   | SocketErrorEvent
+  | HeartbeatSendEvent
+  | HeartbeatReplyEvent
 
 type SubscriberId = string
 type Dispatch = (event: SocketEvent) => void
+
+interface PushToServer {
+  event: string
+  payload: object | undefined
+  ref: Phoenix.EventRef
+  topic: Topic
+}
 
 export class Socket {
   public subscribers: Map<SubscriberId, Dispatch> = new Map()
@@ -124,7 +156,7 @@ export class Socket {
   public connectionStatus: SocketStatus = SocketStatus.NotInitialized
   public errors: Array<SocketErrorEvent | SocketAbnormalCloseEvent> = []
 
-  private pushes: Map<Topic, Map<Phoenix.EventRef, Push>> = new Map()
+  private pushes: Map<Topic, Map<Phoenix.EventRef, PushToServer>> = new Map()
 
   private conn: WebSocket | Native.LongPoll | null = null
 
@@ -230,8 +262,20 @@ export class Socket {
     return Socket.snapshotHasChanged(prev, current) ? current : prev
   }
 
-  private push(event: object): void {
+  private push(event: {
+    event: string
+    payload: object | undefined
+    ref: Phoenix.EventRef
+    topic: Topic
+  }): void {
     Native.Socket.prototype.push.bind(this.socket)(event)
+    this.handlePush(event)
+  }
+
+  private handlePush(event: PushToServer): void {
+    const topicPushes = this.pushes.get(event.topic) || new Map()
+    topicPushes.set(event.ref, event)
+    this.pushes.set(event.topic, topicPushes)
   }
 
   private static haveChannelsChanged(
@@ -267,7 +311,6 @@ export class Socket {
     if (event.event === SocketEvents.AbnormalClose) {
       this.errors.push(event)
     }
-    console.log(this.errors)
     this.updateConnectionStatus(status, event)
   }
 
@@ -297,12 +340,30 @@ export class Socket {
     }
 
     this.errors.push(event)
-    console.log(this.errors)
     this.subscribers.forEach((dispatch) => dispatch(event))
   }
 
   private onMessage(msg: SocketMessage): void {
-    console.log("SOCKET_MESSAGE", msg)
+    if (msg.ref) {
+      const topicPushes = this.pushes.get(msg.topic)
+      if (topicPushes) {
+        const push = topicPushes.get(msg.ref)
+        if (push) {
+          topicPushes.delete(msg.ref)
+          if (push.topic === "phoenix" && push.event === "heartbeat") {
+            this.subscribers.forEach((dispatch) => {
+              dispatch({
+                event: HeartbeatEvents.Reply,
+                payload: msg.payload,
+              } as HeartbeatReplyEvent)
+            })
+          }
+        }
+        if (topicPushes.size === 0) {
+          this.pushes.delete(msg.topic)
+        }
+      }
+    }
   }
 
   private transportConnect(): void {

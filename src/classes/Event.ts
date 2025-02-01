@@ -1,19 +1,15 @@
-import { SocketEvents } from "./Socket"
-
-export enum PhoenixMessages {
-  Join = "phx_join",
-  Error = "phx_error",
-  Reply = "phx_reply",
-  Close = "phx_close",
-  Leave = "phx_leave",
-  ChannelReply = "chan_reply",
-}
+import type { SocketEvents } from "./Socket"
 
 export enum PushEvents {
   Send = "PUSH_SEND",
   Success = "PUSH_SUCCESS",
   Timeout = "PUSH_TIMEOUT",
   Error = "PUSH_ERROR",
+}
+
+export enum HeartbeatEvents {
+  Send = "HEARTBEAT_SEND",
+  Reply = "HEARTBEAT_REPLY",
 }
 
 export enum JoinEvents {
@@ -65,10 +61,30 @@ export interface JoinTimeout extends Event {
   type: JoinEvents.Timeout
 }
 
-export type JoinEvent = JoinStart | JoinSuccess | JoinError | JoinTimeout
-
-export interface SocketEvent extends Event {
+export interface SocketConnectionEvent extends Event {
   type: SocketEvents
 }
 
-export type ChannelEvent = JoinEvent | PushEvent | SocketEvent
+type HeartbeatEvent =
+  | {
+      type: HeartbeatEvents.Send
+      topic: string
+      message: undefined
+      payload: undefined
+    }
+  | {
+      type: HeartbeatEvents.Reply
+      topic: string
+      message: undefined
+      payload: {
+        status: "ok" | "error"
+      }
+    }
+
+export type JoinEvent = JoinStart | JoinSuccess | JoinError | JoinTimeout
+
+export type ChannelEvent =
+  | JoinEvent
+  | PushEvent
+  | SocketConnectionEvent
+  | HeartbeatEvent

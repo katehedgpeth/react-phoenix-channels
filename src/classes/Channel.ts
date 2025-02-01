@@ -3,6 +3,7 @@ import { v4 as uuid } from "uuid"
 import {
   type ChannelEvent,
   type Event,
+  HeartbeatEvents,
   type JoinEvent,
   JoinEvents,
   type JoinTimeout,
@@ -14,7 +15,6 @@ import { Push } from "./Push"
 import * as Phoenix from "./shims/Phoenix"
 import {
   Socket,
-  type SocketCloseEvent,
   type SocketEvent,
   SocketEvents,
   type Snapshot as SocketSnapshot,
@@ -136,12 +136,16 @@ export class Channel {
 
   private handleSocketEvent({ event, payload }: SocketEvent): void {
     switch (event) {
-      case SocketEvents.Close:
-      case SocketEvents.ConnectError:
-      case SocketEvents.ConnectionLostError:
+      case SocketEvents.AbnormalClose:
+      case SocketEvents.NormalClose:
+      case SocketEvents.Error:
         this.status = ChannelStatus.Closed
         break
+      case SocketEvents.Connecting:
       case SocketEvents.Open:
+      case SocketEvents.Closing:
+      case HeartbeatEvents.Send:
+      case HeartbeatEvents.Reply:
         break
     }
 
@@ -150,7 +154,7 @@ export class Channel {
       topic: this.topic,
       message: event,
       payload,
-    })
+    } as ChannelEvent)
   }
 
   public handleJoinEvent(event: JoinEvent): void {
@@ -197,7 +201,6 @@ export class Channel {
 
   public joinOnce(timeout?: number): Push {
     if (this.joinPush) {
-      console.log(this.joinPush)
       return this.joinPush
     }
 
@@ -240,6 +243,13 @@ export class Channel {
     const push = new Push(phoenixPush, this)
 
     this.pushes.set(push.ref!, push)
+    this.dispatch({
+      type: PushEvents.Send,
+      topic: this.topic,
+      message: push.message,
+      payload: push.push.payload,
+    })
+
     return push
   }
 }

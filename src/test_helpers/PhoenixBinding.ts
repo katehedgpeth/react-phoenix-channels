@@ -41,7 +41,6 @@ export function toPhoenix(
     hoistedClient = client
     options.onConnect?.(client)
     client.addEventListener("message", (event) => {
-      console.log("LINK.CLIENTS", link.clients)
       handlePushMessage(event, client, options)
     })
   })

@@ -37,16 +37,13 @@ export function useChannel<Events, State>({
       dispatch,
     )
 
-    console.log("CHANNEL_STATUS", channel.current.status)
     if (channel.current?.status === ChannelStatus.NotInitialized) {
-      const join = channel.current.joinOnce()
-      console.log("JOIN", join)
+      channel.current.joinOnce(5_000)
     }
     return () => {
       unsubscribe?.()
     }
   }, [])
-  console.log("CHANNEL", channel.current)
 
   return useMemo(() => {
     return {
@@ -56,6 +53,9 @@ export function useChannel<Events, State>({
           throw new Error(`${topicRef.current} channel is not initialized!`)
         }
         channel.current.push(message, payload)
+      },
+      unsubscribe: () => {
+        channel.current?.unsubscribe(subscriberId.current)
       },
       socketStatus: () => {
         return socket.connectionStatus

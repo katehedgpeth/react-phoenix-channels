@@ -4,6 +4,32 @@
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>react_phoenix_channels Debugger</title>
+    <style>
+      .heartbeat-container {
+        width: 150px;
+        height: 150px;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        margin: 20px auto;
+      }
+      .heartbeat {
+        transition: all 0.1s ease;
+        background: green;
+        width: 100px;
+        height: 100px
+      }
+      .heartbeat.awaiting {
+        background: green;
+        width: 150px;
+        height: 150px;
+      }
+      .heartbeat.error {
+        background: red;
+        width: 100px;
+        height: 100px;
+      }
+    </style>
   </head>
   <body>
     <div id="root"></div>

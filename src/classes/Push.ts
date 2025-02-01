@@ -1,10 +1,5 @@
 import { Channel } from "./Channel"
-import {
-  type ChannelEvent,
-  JoinEvents,
-  PhoenixMessages,
-  PushEvents,
-} from "./Event"
+import { type ChannelEvent, JoinEvents, PushEvents } from "./Event"
 import * as Phoenix from "./shims/Phoenix"
 
 export class Push {
@@ -44,7 +39,7 @@ export class Push {
   }
 
   private isJoinPush(): boolean {
-    return this.message === PhoenixMessages.Join
+    return this.message === Phoenix.SocketMessages.Join
   }
 
   private parseEvent(type: PushEvents, payload: object): ChannelEvent {

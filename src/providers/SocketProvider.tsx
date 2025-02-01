@@ -23,7 +23,7 @@ export const SocketContext: ReactContext<Context> = createContext({
   },
 } as Context)
 
-type Props = PropsWithChildren<Options & { url: string }>
+type Props = PropsWithChildren<{ url: string, options: Options }>
 
 interface State {
   connectionStatus: SocketStatus
@@ -48,7 +48,7 @@ function reducer(state: State, { event, payload }: SocketEvent, socket: Socket):
   }
 }
 
-export const SocketProvider: FC<Props> = memo(function SocketProvider({ children, url, ...options }: Props) {
+export const SocketProvider: FC<Props> = memo(function SocketProvider({ children, url, options }: Props) {
   const socket = useRef<Socket>(new Socket(url, options))
   const subscriberRef = useRef<string>(window.crypto.randomUUID())
 

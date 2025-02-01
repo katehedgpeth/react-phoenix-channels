@@ -13,8 +13,9 @@ defmodule DebugBackendWeb.RoomChannel do
   # Channels can be used in a request/response fashion
   # by sending replies to requests from the client
   @impl true
-  def handle_in("ping", payload, socket) do
-    {:reply, {:ok, payload}, socket}
+  def handle_in("ping", %{"message" => "Hello"}, socket) do
+    :timer.sleep(500)
+    {:reply, {:ok, %{"message" => "Hello from the server"}}, socket}
   end
 
   # It is also common to receive messages from the client and

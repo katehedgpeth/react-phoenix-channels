@@ -10,6 +10,7 @@ export enum SocketMessages {
   Reply = "phx_reply",
   Close = "phx_close",
   Leave = "phx_leave",
+  Heartbeat = "heartbeat",
 }
 
 export enum SocketStatus {

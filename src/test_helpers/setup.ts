@@ -27,9 +27,6 @@ export const testWithServer: TestAPI<Context> = test.extend<Context>({
   server: [
     // eslint-disable-next-line no-empty-pattern
     async ({}, use) => {
-      // link.clients.clear()
-      console.log()
-
       const server: SetupServerApi = setupServer()
       // Start the worker before the test.
       server.events.on("request:start", ({ request }) => {
@@ -39,8 +36,6 @@ export const testWithServer: TestAPI<Context> = test.extend<Context>({
 
       // Expose the worker object on the test's context.
       await use(server)
-
-      // Stop the worker after the test is done.
     },
     { auto: true },
   ],
