@@ -9,16 +9,21 @@ import {
   useReducer,
   useRef,
 } from "react"
+import * as Native from "phoenix"
 import { type Options, Socket, type SocketAbnormalCloseEvent, type SocketErrorEvent, type SocketEvent, SocketEvents, SocketStatus } from "../classes/Socket"
 
 interface Context {
   connectionStatus: Socket["connectionStatus"]
   getOrCreateChannel: Socket["getOrCreateChannel"]
+  phoenixSocket(): Native.Socket
 }
 
 export const SocketContext: ReactContext<Context> = createContext({
   connectionStatus: SocketStatus.NotInitialized,
   getOrCreateChannel: (_topic: string, _params: object) => {
+    throw new Error("SocketProvider not initialized!")
+  },
+  phoenixSocket: () => {
     throw new Error("SocketProvider not initialized!")
   },
 } as Context)
@@ -105,6 +110,7 @@ export const SocketProvider: FC<Props> = memo(function SocketProvider({ children
         }
         return socket.current.getOrCreateChannel(topic, params)
       },
+      phoenixSocket: () => socket.current.socket,
     }
   }, [state])
 
