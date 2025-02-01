@@ -9,7 +9,7 @@ const config = [
       format: 'cjs',
       sourcemap: true,
     },
-    external: ['phoenix', 'react', 'react/jsx-runtime'],
+    external: ['phoenix', 'react', 'react/jsx-runtime', '@types/react', '@types/phoenix'],
     plugins: [typescript()]
   }, {
     input: 'build/index.d.ts',
@@ -17,6 +17,7 @@ const config = [
       file: 'dist/index.d.ts',
       format: 'es'
     },
+    external: ['phoenix', 'react', '@types/react', '@types/phoenix'],
     plugins: [dts()]
   }
 ];
