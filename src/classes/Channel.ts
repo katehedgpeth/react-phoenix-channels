@@ -1,5 +1,4 @@
 import * as Native from "phoenix"
-import { v4 as uuid } from "uuid"
 import {
   type ChannelEvent,
   type Event,
@@ -70,7 +69,7 @@ export class Channel {
   private joinPush: Push | null = null
 
   constructor(public channel: Phoenix.Channel, public socket: Socket) {
-    this.id = uuid()
+    this.id = window.crypto.randomUUID()
     this.topic = this.channel.topic
     this.channel.join = this.__join.bind(this)
     this.socket.subscribe(this.id, (ev) => this.handleSocketEvent(ev))

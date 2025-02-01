@@ -14,9 +14,11 @@
     "start:debug": "vite",
     "test": "vitest --config ./vite.config.ts",
     "lint": "eslint .",
-    "tsc": "tsc -p ./tsconfig.pkg.json",
-    "_make-bundle": "rollup --config",
-    "build": "_make-bundle"
+    "clean:build": "rimraf ./build",
+    "clean:dist": "rimraf ./dist",
+    "clean": "yarn clean:build && yarn clean:dist",
+    "tsc": "rm -rf && tsc -p ./tsconfig.pkg.json",
+    "rollup": "rollup --config"
   },
   "prettier": {
     "singleQuote": false,
@@ -32,12 +34,7 @@
     }
   },
   "dependencies": {
-    "@testing-library/react": "12",
-    "immer": "^10.1.1",
-    "phoenix": "^1.7.18",
-    "react-dom": "17",
-    "use-sync-external-store": "^1.4.0",
-    "uuid": "^11.0.3"
+    "phoenix": "^1.7.18"
   },
   "devDependencies": {
     "@eslint/js": "^9.17.0",
@@ -45,6 +42,7 @@
     "@rollup/plugin-typescript": "^12.1.2",
     "@testing-library/dom": "^10.4.0",
     "@testing-library/jest-dom": "^6.6.3",
+    "@testing-library/react": "12",
     "@types/node": "^22.13.0",
     "@types/phoenix": "^1.6.6",
     "@types/react": "^19.0.2",
@@ -63,6 +61,8 @@
     "jsdom": "^25.0.1",
     "msw": "^2.7.0",
     "react": "^17.0.2",
+    "react-dom": "17.0",
+    "rimraf": "^6.0.1",
     "rollup": "^4.34.0",
     "rollup-plugin-dts": "^6.1.1",
     "tslib": "^2.8.1",

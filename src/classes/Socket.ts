@@ -1,5 +1,4 @@
 import * as Native from "phoenix"
-import { v4 as uuid } from "uuid"
 import { Channel } from "./Channel"
 import { HeartbeatEvents, type Topic } from "./Event"
 import * as Phoenix from "./shims/Phoenix/index"
@@ -161,7 +160,7 @@ export class Socket {
   private conn: WebSocket | Native.LongPoll | null = null
 
   constructor(public url: string, public options: Options) {
-    this.id = uuid()
+    this.id = window.crypto.randomUUID()
     this.socket = new Native.Socket(url, options) as Phoenix.Socket
     this.socket.push = this.push.bind(this)
     this.socket.onClose((ev) => this.onClose(ev))

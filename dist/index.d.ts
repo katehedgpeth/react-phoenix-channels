@@ -322,6 +322,7 @@ declare function useChannel<Events, State>({ topic, onEvent, initialState, ...op
 interface Context {
     connectionStatus: Socket["connectionStatus"];
     getOrCreateChannel: Socket["getOrCreateChannel"];
+    phoenixSocket(): Phoenix.Socket;
 }
 declare const SocketContext: Context$2<Context>;
 type Props = PropsWithChildren<{

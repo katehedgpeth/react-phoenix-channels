@@ -1,7 +1,6 @@
 'use strict';
 
 var Native = require('phoenix');
-var uuid = require('uuid');
 var react = require('react');
 var jsxRuntime = require('react/jsx-runtime');
 
@@ -173,7 +172,7 @@ class Channel {
         this.status = ChannelStatus.NotInitialized;
         this.joinPush = null;
         this.lastSnapshot = null;
-        this.id = uuid.v4();
+        this.id = window.crypto.randomUUID();
         this.topic = this.channel.topic;
         this.channel.join = this.__join.bind(this);
         this.socket.subscribe(this.id, (ev) => this.handleSocketEvent(ev));
@@ -364,7 +363,7 @@ class Socket {
         this.errors = [];
         this.pushes = new Map();
         this.conn = null;
-        this.id = uuid.v4();
+        this.id = window.crypto.randomUUID();
         this.socket = new Native__namespace.Socket(url, options);
         this.socket.push = this.push.bind(this);
         this.socket.onClose((ev) => this.onClose(ev));
@@ -548,6 +547,9 @@ const SocketContext = react.createContext({
     getOrCreateChannel: (_topic, _params) => {
         throw new Error("SocketProvider not initialized!");
     },
+    phoenixSocket: () => {
+        throw new Error("SocketProvider not initialized!");
+    },
 });
 function parseSocketError({ event, payload }) {
     switch (event) {
@@ -615,6 +617,7 @@ const SocketProvider = react.memo(function SocketProvider({ children, url, optio
                 }
                 return socket.current.getOrCreateChannel(topic, params);
             },
+            phoenixSocket: () => socket.current.socket,
         };
     }, [state]);
     return (jsxRuntime.jsx(SocketContext.Provider, { value: context, children: children }));
