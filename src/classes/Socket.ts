@@ -2,7 +2,7 @@ import * as Native from "phoenix"
 import { v4 as uuid } from "uuid"
 import { Channel } from "./Channel"
 import { HeartbeatEvents, type Topic } from "./Event"
-import * as Phoenix from "./shims/Phoenix"
+import * as Phoenix from "./shims/Phoenix/index"
 
 export type Options = Partial<Phoenix.SocketConnectOption>
 

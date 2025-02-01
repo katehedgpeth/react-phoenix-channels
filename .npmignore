@@ -2,3 +2,4 @@
 ./src/**/*.test.ts
 ./src/**/*.test.tsx
 ./src/test_helpers/setup.ts
+/build/

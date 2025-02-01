@@ -1,0 +1,19 @@
+{
+  "compilerOptions": {
+    "moduleResolution": "bundler",
+    "jsx": "react-jsx",
+    "removeComments": false,
+    "sourceMap": true,
+    "target": "es2018",
+    "outDir": "build",
+    "declaration": true,
+    "strict": true,
+    "module": "esnext",
+    "noEmitOnError": true,
+    "lib": ["esnext", "DOM"],
+    "esModuleInterop": true,
+    "baseUrl": "."
+  },
+  "include": ["src"],
+  "exclude": ["node_modules/**/*", "build/**/*", "src/debug_component/**/*"]
+}

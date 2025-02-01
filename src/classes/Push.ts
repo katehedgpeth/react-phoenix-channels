@@ -1,6 +1,6 @@
 import { Channel } from "./Channel"
 import { type ChannelEvent, JoinEvents, PushEvents } from "./Event"
-import * as Phoenix from "./shims/Phoenix"
+import * as Phoenix from "./shims/Phoenix/index"
 
 export class Push {
   public ref: string

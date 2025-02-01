@@ -12,7 +12,7 @@ import {
   type Topic,
 } from "./Event"
 import { Push } from "./Push"
-import * as Phoenix from "./shims/Phoenix"
+import * as Phoenix from "./shims/Phoenix/index"
 import {
   Socket,
   type SocketEvent,
